@@ -505,16 +505,33 @@ fn paste(app: &AppHandle, text: &str, target: &Target) -> bool {
     true
 }
 
+/// ⌘V on macOS, posted straight to the system with the key code of V, so
+/// it works from any thread. (Asking for the key of a letter goes through the
+/// keyboard layout, which macOS only allows on the main thread.)
+#[cfg(target_os = "macos")]
+fn press_paste() -> Result<(), String> {
+    use core_graphics::event::{CGEvent, CGEventFlags, CGEventTapLocation};
+    use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
+    const KEY_V: u16 = 9; // kVK_ANSI_V
+    let source = CGEventSource::new(CGEventSourceStateID::CombinedSessionState)
+        .map_err(|()| "no event source".to_string())?;
+    for down in [true, false] {
+        let event = CGEvent::new_keyboard_event(source.clone(), KEY_V, down)
+            .map_err(|()| "could not make the key event".to_string())?;
+        event.set_flags(CGEventFlags::CGEventFlagCommand);
+        event.post(CGEventTapLocation::HID);
+    }
+    Ok(())
+}
+
+/// Ctrl+V elsewhere, by virtual key code.
+#[cfg(not(target_os = "macos"))]
 fn press_paste() -> Result<(), String> {
     use enigo::{Direction, Enigo, Key, Keyboard, Settings};
     let mut enigo = Enigo::new(&Settings::default()).map_err(|e| e.to_string())?;
-    #[cfg(target_os = "macos")]
-    let modifier = Key::Meta;
-    #[cfg(not(target_os = "macos"))]
-    let modifier = Key::Control;
-    enigo.key(modifier, Direction::Press).map_err(|e| e.to_string())?;
-    let typed = enigo.key(Key::Unicode('v'), Direction::Click);
-    enigo.key(modifier, Direction::Release).map_err(|e| e.to_string())?;
+    enigo.key(Key::Control, Direction::Press).map_err(|e| e.to_string())?;
+    let typed = enigo.key(Key::Other(0x56), Direction::Click); // VK_V
+    enigo.key(Key::Control, Direction::Release).map_err(|e| e.to_string())?;
     typed.map_err(|e| e.to_string())
 }
 
