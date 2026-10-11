@@ -80,7 +80,7 @@ jobs:
             Download the installer for your computer below.
 
             macOS (Apple silicon): open the .dmg and drag Oorapp to Applications. The first time, right-click Oorapp and choose Open, because the app is not notarized by Apple.
-            Windows: run the -setup.exe. Windows SmartScreen may warn the first time; choose More info, then Run anyway.
+            Windows (experimental, not tested on a real machine yet): run the -setup.exe. SmartScreen may warn the first time; choose More info, then Run anyway. Transcription runs on the CPU, so long meetings take a while. Notes use Alt+Shift+Space. Please report what works and what does not in the issues.
 
             Installed already? Oorapp updates itself.
           releaseDraft: true

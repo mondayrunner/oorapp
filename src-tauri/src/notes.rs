@@ -24,7 +24,11 @@ use crate::{Hub, Phase};
 
 /// Holding the right Option key, like dictation apps do: no other app uses
 /// it on its own, unlike most key combinations.
+#[cfg(target_os = "macos")]
 pub const DEFAULT_SHORTCUT: &str = "RightAlt";
+/// Elsewhere a single held key cannot be heard, so a combination.
+#[cfg(not(target_os = "macos"))]
+pub const DEFAULT_SHORTCUT: &str = "Alt+Shift+Space";
 
 /// Keys held on their own, by name, with their macOS key code.
 const HOLD_KEYS: [(&str, i64, &str); 5] = [
