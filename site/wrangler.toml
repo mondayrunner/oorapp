@@ -2,6 +2,7 @@
 #   cd site && npx wrangler deploy
 name = "oorapp-site"
 compatibility_date = "2026-10-01"
+account_id = "5b5e91fc79cf26eccff6da9ff8c6cb06"
 
 [assets]
 directory = "."
