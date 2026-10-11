@@ -1,0 +1,13 @@
+# oorapp.sitelane.nl: the static site on Cloudflare Workers (assets only).
+#   cd site && npx wrangler deploy
+name = "oorapp-site"
+compatibility_date = "2026-10-01"
+
+[assets]
+directory = "."
+html_handling = "auto-trailing-slash"
+not_found_handling = "404-page"
+
+[[routes]]
+pattern = "oorapp.sitelane.nl"
+custom_domain = true

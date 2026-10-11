@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Oorapp · Every call written down, and the audio stays on your Mac</title>
+  <meta name="description" content="Free, open-source meeting recorder for macOS. Records your microphone and your computer's sound as two tracks, so it knows who said what in any call app. No bot joins. Transcribed on your own machine.">
+  <meta property="og:title" content="Oorapp · Every call written down, and the audio stays on your Mac">
+  <meta property="og:description" content="Free, open-source meeting recorder and quick notes for macOS, transcribed on your own machine. No bot joins the call.">
+  <meta property="og:image" content="https://oorapp.sitelane.nl/icon.png">
+  <link rel="icon" href="/favicon.png">
+  <link rel="stylesheet" href="/style.css">
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Oorapp","operatingSystem":"macOS 14.4+","applicationCategory":"BusinessApplication","offers":{"@type":"Offer","price":"0","priceCurrency":"EUR"},"license":"https://opensource.org/licenses/MIT","url":"https://oorapp.sitelane.nl","codeRepository":"https://github.com/mondayrunner/oorapp","author":{"@type":"Person","name":"Tim van den Bosch"}}</script>
+</head>
+<body>
+  <div class="wrap">
+    <header class="nav">
+      <a class="brand" href="/"><img src="/favicon.png" alt="">Oorapp</a>
+      <nav>
+        <a href="#how">How it works</a>
+        <a href="#notes">Notes</a>
+        <a href="/mcp">MCP</a>
+        <a href="#faq">FAQ</a>
+        <a class="pill-link" href="https://github.com/mondayrunner/oorapp">GitHub</a>
+      </nav>
+    </header>
+
+    <main>
+      <div class="hero">
+        <h1>Every call written down, and the audio stays on your Mac.</h1>
+        <p>Oorapp records your microphone and your computer's sound as two separate tracks, so it knows who said what in any call app. No bot joins the meeting. It is free and open source.</p>
+        <div class="buttons">
+          <a class="btn btn-red" href="https://github.com/mondayrunner/oorapp/releases/latest">
+            <svg width="16" height="18" viewBox="0 0 16 18" aria-hidden="true"><path d="M13.2 9.6c0-2.3 1.9-3.4 2-3.5-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.1-2.8.9-3.5.9-.7 0-1.8-.8-3-.8C3.7 4.4 2.2 5.3 1.4 6.8c-1.7 2.9-.4 7.2 1.2 9.5.8 1.1 1.7 2.4 2.9 2.3 1.2 0 1.6-.7 3-.7s1.8.7 3 .7c1.3 0 2.1-1.1 2.8-2.3.9-1.3 1.3-2.6 1.3-2.7-.1 0-2.4-.9-2.4-3.9zM10.9 2.8c.6-.8 1.1-1.8 1-2.8-.9 0-2 .6-2.6 1.4-.6.6-1.1 1.7-1 2.7 1 .1 2-.5 2.6-1.3z" fill="currentColor"/></svg>
+            Download for macOS
+          </a>
+          <a class="btn btn-line" href="https://github.com/mondayrunner/oorapp">Read the code on GitHub</a>
+        </div>
+        <span class="mono small">Version 0.1 · Apple silicon · macOS 14.4 or newer · Windows is next</span>
+      </div>
+
+      <div class="window" aria-label="A meeting in Oorapp">
+        <div class="titlebar">
+          <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+          <strong>Weekly sync with Northwind</strong>
+          <span class="mono">32:41 · English · 3 speakers</span>
+        </div>
+        <div class="player">
+          <span class="play"><svg width="14" height="14" viewBox="0 0 14 14"><path d="M3 1.5h3v11H3zM8 1.5h3v11H8z" fill="#F2EFE9"/></svg></span>
+          <img src="/tracks.svg" alt="Your microphone above the line in red, the other side below it in amber">
+          <span class="mono">07:12 / 32:41</span>
+        </div>
+        <div class="lines">
+          <h3>Export timeouts on large projects</h3>
+          <div class="line"><span class="t">06:48</span><span class="s amber">Maya</span><span class="x">Did you see the ticket from Northwind? Exports stop halfway on their big projects.</span></div>
+          <div class="line"><span class="t">06:57</span><span class="s red">Tim</span><span class="x">I looked at it yesterday. It's a timeout, the proxy cuts the request off after sixty seconds.</span></div>
+          <div class="line now"><span class="t">07:12</span><span class="s blue">Joost</span><span class="x">So short term we raise the timeout, and next sprint the export runs in the background and mails a link.</span></div>
+          <div class="line"><span class="t">07:21</span><span class="s red">Tim</span><span class="x">Agreed. I'll tell Northwind it's fixed by Thursday.</span></div>
+        </div>
+      </div>
+
+      <section id="how" class="split">
+        <h2>It hears both sides of the call, with nobody in the call noticing.</h2>
+        <div class="body">
+          <p>Most meeting tools send a bot into your call that announces itself. Oorapp stays on your Mac. It records what you say into your microphone and what your computer plays from the other side, each on its own track.</p>
+          <p>Because the two sides stay apart, every line in the transcript already knows whether it was you or them. When several people share one side, their voices are told apart too. Using speakers instead of a headset? The echo of the other side in your microphone is filtered out.</p>
+          <span class="mono">Zoom · Google Meet · Microsoft Teams · Slack huddles · anything that plays sound</span>
+        </div>
+      </section>
+
+      <section class="split">
+        <div class="stack">
+          <h2>Your meetings stay on your Mac, from the first word to the last.</h2>
+          <pre class="folder">Documents/Meetings/
+  202610141030 Weekly sync with Northwind/
+    audio.ogg
+    transcript.md
+    Weekly sync with Northwind.oorapp</pre>
+        </div>
+        <div class="body">
+          <p>Transcription runs on your own computer with Whisper, accelerated by your Mac's GPU. The audio and the text are never uploaded.</p>
+          <p>Every meeting is a plain folder in Documents/Meetings: the audio, a Markdown transcript and a small file that opens it in Oorapp. Delete the folder and the meeting is gone.</p>
+          <p>One thing is optional. If you have Claude Code or Codex installed, Oorapp can ask it to divide a long meeting into chapters. That sends the transcript text to the service you already use, with every tool of the agent switched off. Without an agent, nothing leaves your computer at all.</p>
+        </div>
+      </section>
+
+      <section>
+        <h2 style="max-width: 760px">You get a transcript you can listen to, fix and share.</h2>
+        <div class="three">
+          <div><h3>Listen</h3><p>Press stop and the lines appear as they are recognised. Click a line to hear it, drag through the waveform to find a moment, jump between chapters.</p></div>
+          <div><h3>Fix</h3><p>Give each speaker a name once and every line follows. Fix a word in place, give a line to the right speaker or delete it, with undo.</p></div>
+          <div><h3>Share</h3><p>Copy the whole transcript with one click, or let your own scripts pick it up, for example to file it in Obsidian.</p></div>
+        </div>
+      </section>
+
+      <section id="notes" class="center">
+        <h2 class="big">Hold one key anywhere, talk, and the text lands where you type.</h2>
+        <p>For thoughts that are too short for a meeting. Hold the note key, say what you want to write and let go. The text is pasted into the app you were in. A short tap keeps it listening until you tap again.</p>
+        <div class="note-demo" aria-hidden="true">
+          <div class="field">
+            <span class="mono">Slack · #launch</span>
+            <div>Quick update: exports on large projects work again, the background version ships next sprint.<span class="caret">|</span></div>
+          </div>
+          <div class="hud"><span class="rec"></span><span class="bars"></span><b>0:06</b></div>
+        </div>
+      </section>
+
+      <section>
+        <div class="head-row">
+          <h2>Everything you said is one search away, also for your AI assistant.</h2>
+          <p>Meetings, notes and transcribed files share one history, grouped by day and searchable by word or date. Drop a phone memo or an interview on the window to transcribe it, with the voices told apart.</p>
+        </div>
+        <div class="panels">
+          <div class="panel" aria-label="The history">
+            <div class="search"><svg width="14" height="14" viewBox="0 0 14 14"><circle cx="6" cy="6" r="4.2" stroke="#8C857D" stroke-width="1.4" fill="none"/><path d="M9.2 9.2L12.5 12.5" stroke="#8C857D" stroke-width="1.4" stroke-linecap="round"/></svg>northwind</div>
+            <span class="day">Today</span>
+            <div class="card">Tell Northwind the export fix ships Thursday and the background version next sprint.<small>2m ago · 0:09 · → Slack</small></div>
+            <div class="card"><strong>Weekly sync with Northwind</strong><span class="pre">Maya: Did you see the ticket from Northwind? Exports stop halfway on their big…</span><small>10:30 · 32:41 · Meeting</small></div>
+          </div>
+          <div class="panel" aria-label="Asking Claude through the Oorapp MCP server">
+            <div class="ask">What did we agree with Northwind this week?</div>
+            <span class="mono" style="font-size:12px">oorapp · search "Northwind"</span>
+            <div class="answer">In Tuesday's weekly sync you agreed to raise the export timeout now and move exports to the background next sprint. Tim promised Northwind the fix by Thursday.</div>
+            <a href="/mcp"><code>Connect Claude to Oorapp →</code></a>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="credits">
+          <h2>Oorapp is built on Jankees van Woezik's meeting recorder for Linux.</h2>
+          <div class="body">
+            <p>Jankees van Woezik made omarchy-meeting-recorder for Omarchy. The two-track recording, the way speakers are told apart, the echo filter, the transcript page and the test suite all come from his work.</p>
+            <p>Oorapp brings it to macOS and Windows, adds quick notes, a history and an MCP server, and keeps his MIT license. On Linux, use his: it is the original and it is excellent.</p>
+            <a href="https://github.com/jankeesvw/omarchy-meeting-recorder">github.com/jankeesvw/omarchy-meeting-recorder →</a>
+          </div>
+        </div>
+      </section>
+
+      <section id="faq" class="faq">
+        <h2>Questions people ask first.</h2>
+        <div class="list">
+          <details open><summary>Is it really free?</summary><p>Yes. There is no account and no subscription, and the code is MIT licensed. Tim van den Bosch made it at Sitelane because he wanted it himself.</p></details>
+          <details><summary>Which meeting apps does it work with?</summary><p>Any app that plays sound on your Mac: Zoom, Google Meet, Microsoft Teams, Slack, FaceTime or a browser tab. Oorapp records what your computer plays, so it does not need to know the app.</p></details>
+          <details><summary>Do I have to tell people I am recording?</summary><p>In many countries you do, and it is good manners everywhere. Oorapp does not announce itself, so telling the others is up to you.</p></details>
+          <details><summary>How good is the transcription?</summary><p>Meetings use Whisper large-v3-turbo on your Mac. It handles English, Dutch, German, French, Spanish, Italian and Portuguese, or detects the language itself. The app is tested against a set of recorded calls with people talking over each other, echo through speakers and music in the background.</p></details>
+          <details><summary>What does macOS ask permission for?</summary><p>The microphone, to hear you, and system audio recording, to hear the other side. For notes also Input Monitoring, to hear the note key in other apps, and Accessibility, to paste the text there. On first use Oorapp downloads its speech models once: 1.6 GB for meetings and 670 MB for notes.</p></details>
+          <details><summary>Why not Granola, Otter or Fireflies?</summary><p>They are good products that work in the cloud, often with a bot or a subscription. Oorapp is for when you want the recording and the text on your own machine.</p></details>
+          <details><summary>Is there a Windows version?</summary><p>Windows is next. Follow the repository on GitHub to hear when it is ready.</p></details>
+        </div>
+      </section>
+
+      <section class="center closing">
+        <h2>Try it on your next call, it takes a minute to set up.</h2>
+        <p>Download Oorapp, allow the microphone and system audio, and press Start recording. The speech model downloads once on first use.</p>
+        <div class="buttons" style="justify-content:center">
+          <a class="btn btn-red" href="https://github.com/mondayrunner/oorapp/releases/latest">Download for macOS</a>
+          <a class="btn btn-line" href="https://github.com/mondayrunner/oorapp">Read the code on GitHub</a>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <footer>
+    <div class="wrap">
+      <p>Oorapp is free and open source under the MIT license. Made by Tim van den Bosch at Sitelane, based on omarchy-meeting-recorder by Jankees van Woezik. "Oor" is Dutch for ear.</p>
+      <nav>
+        <a href="https://github.com/mondayrunner/oorapp">GitHub</a>
+        <a href="https://github.com/jankeesvw/omarchy-meeting-recorder">Original for Linux</a>
+        <a href="/mcp">MCP</a>
+        <a href="https://sitelane.nl">Sitelane</a>
+      </nav>
+    </div>
+  </footer>
+
+  <script>
+    // The pill's voice: bars with staggered timing.
+    const bars = document.querySelector(".hud .bars");
+    for (let i = 0; i < 24; i++) {
+      const bar = document.createElement("i");
+      bar.style.animationDelay = `${(i * 137) % 900}ms`;
+      bar.style.animationDuration = `${700 + ((i * 53) % 600)}ms`;
+      bars.appendChild(bar);
+    }
+  </script>
+</body>
+</html>

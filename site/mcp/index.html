@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Oorapp MCP · Let Claude search your meetings and notes</title>
+  <meta name="description" content="Oorapp includes an MCP server, so Claude and other AI assistants can search and read your meetings and notes. It runs on your own Mac, free.">
+  <link rel="icon" href="/favicon.png">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="wrap">
+    <header class="nav">
+      <a class="brand" href="/"><img src="/favicon.png" alt="">Oorapp</a>
+      <nav>
+        <a href="/#how">How it works</a>
+        <a href="/#notes">Notes</a>
+        <a href="/mcp">MCP</a>
+        <a class="pill-link" href="https://github.com/mondayrunner/oorapp">GitHub</a>
+      </nav>
+    </header>
+
+    <main class="doc">
+      <div class="hero">
+        <h1>Ask Claude what was said, and it looks in your own meetings.</h1>
+        <p>Oorapp comes with an MCP server. Connect it once and Claude, or any other assistant that speaks MCP, can search your meetings, notes and transcribed files and read them back to you. The server is part of the app and runs on your Mac. It is free.</p>
+      </div>
+
+      <h2>Connect it in one click.</h2>
+      <p>In Oorapp, choose <strong>Use with Claude…</strong> at the bottom of the sidebar, then <strong>Connect Claude Code</strong> or <strong>Connect Claude Desktop</strong>. Restart Claude Desktop afterwards. Prefer to do it by hand? Pick your assistant below.</p>
+
+      <h3>Claude Code</h3>
+      <pre>claude mcp add --scope user oorapp -- /Applications/Oorapp.app/Contents/MacOS/oorapp-app mcp</pre>
+
+      <h3>Claude Desktop</h3>
+      <p>Open Settings, Developer, Edit Config, and add Oorapp to <code>claude_desktop_config.json</code>:</p>
+      <pre>{
+  "mcpServers": {
+    "oorapp": {
+      "command": "/Applications/Oorapp.app/Contents/MacOS/oorapp-app",
+      "args": ["mcp"]
+    }
+  }
+}</pre>
+
+      <h3>Cursor, Codex and other clients</h3>
+      <p>Add a stdio server with the command <code>/Applications/Oorapp.app/Contents/MacOS/oorapp-app</code> and the argument <code>mcp</code>. There is no URL and no key: the server reads the meetings on your own disk.</p>
+
+      <h2>What your assistant can do.</h2>
+      <table class="tools">
+        <tr><td>list_meetings</td><td>Your meetings, notes and transcribed files, newest first, with date, length and speakers. Filter by kind or by date.</td></tr>
+        <tr><td>search</td><td>Finds a word or a name in titles and transcripts, with the passage around each hit.</td></tr>
+        <tr><td>get_transcript</td><td>The whole transcript of one meeting, with speakers and chapters, or the text of a note.</td></tr>
+        <tr><td>get_latest</td><td>The meeting or note you made last, transcript included.</td></tr>
+        <tr><td>transcribe_file</td><td>Transcribes an audio file on your Mac, with the voices told apart, and keeps it in your history. A long file takes a few minutes.</td></tr>
+      </table>
+
+      <h2>Things to ask.</h2>
+      <ul class="asks">
+        <li>What did we agree with Northwind this week?</li>
+        <li>Summarise my last meeting in five bullet points and list who promised what.</li>
+        <li>Find every note where I mentioned the pricing page.</li>
+        <li>Turn this morning's call into a follow-up mail in my own words.</li>
+        <li>Transcribe ~/Downloads/interview.m4a and give me the three strongest quotes.</li>
+      </ul>
+
+      <h2>Where your meetings go.</h2>
+      <p>The MCP server only reads the folder <code>~/Documents/Meetings</code> on your own computer and refuses anything outside it. Nothing is uploaded by Oorapp. When you ask Claude a question, the passages it reads become part of that conversation with Claude, like anything else you paste into it.</p>
+    </main>
+  </div>
+
+  <footer>
+    <div class="wrap">
+      <p>Oorapp is free and open source under the MIT license. Made by Tim van den Bosch at Sitelane, based on omarchy-meeting-recorder by Jankees van Woezik.</p>
+      <nav>
+        <a href="https://github.com/mondayrunner/oorapp">GitHub</a>
+        <a href="https://github.com/mondayrunner/oorapp/blob/main/docs/mcp.md">MCP docs</a>
+        <a href="/">Oorapp</a>
+        <a href="https://sitelane.nl">Sitelane</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>
