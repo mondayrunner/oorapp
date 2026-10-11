@@ -30,13 +30,14 @@
         <h1>Every call written down, and the audio stays on your Mac.</h1>
         <p>Oorapp records your microphone and your computer's sound as two separate tracks, so it knows who said what in any call app. No bot joins the meeting. It is free and open source.</p>
         <div class="buttons">
-          <a class="btn btn-red" href="https://github.com/mondayrunner/oorapp/releases/latest">
-            <svg width="16" height="18" viewBox="0 0 16 18" aria-hidden="true"><path d="M13.2 9.6c0-2.3 1.9-3.4 2-3.5-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.1-2.8.9-3.5.9-.7 0-1.8-.8-3-.8C3.7 4.4 2.2 5.3 1.4 6.8c-1.7 2.9-.4 7.2 1.2 9.5.8 1.1 1.7 2.4 2.9 2.3 1.2 0 1.6-.7 3-.7s1.8.7 3 .7c1.3 0 2.1-1.1 2.8-2.3.9-1.3 1.3-2.6 1.3-2.7-.1 0-2.4-.9-2.4-3.9zM10.9 2.8c.6-.8 1.1-1.8 1-2.8-.9 0-2 .6-2.6 1.4-.6.6-1.1 1.7-1 2.7 1 .1 2-.5 2.6-1.3z" fill="currentColor"/></svg>
-            Download for macOS
+          <a class="btn btn-red download" href="https://github.com/mondayrunner/oorapp/releases/latest/download/Oorapp-mac.dmg">
+            <span class="os-icon"><svg width="16" height="18" viewBox="0 0 16 18" aria-hidden="true"><path d="M13.2 9.6c0-2.3 1.9-3.4 2-3.5-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.1-2.8.9-3.5.9-.7 0-1.8-.8-3-.8C3.7 4.4 2.2 5.3 1.4 6.8c-1.7 2.9-.4 7.2 1.2 9.5.8 1.1 1.7 2.4 2.9 2.3 1.2 0 1.6-.7 3-.7s1.8.7 3 .7c1.3 0 2.1-1.1 2.8-2.3.9-1.3 1.3-2.6 1.3-2.7-.1 0-2.4-.9-2.4-3.9zM10.9 2.8c.6-.8 1.1-1.8 1-2.8-.9 0-2 .6-2.6 1.4-.6.6-1.1 1.7-1 2.7 1 .1 2-.5 2.6-1.3z" fill="currentColor"/></svg></span>
+            <span class="os-label">Download for macOS</span>
           </a>
           <a class="btn btn-line" href="https://github.com/mondayrunner/oorapp">Read the code on GitHub</a>
         </div>
-        <span class="mono small">Version 0.1 · Apple silicon · macOS 14.4 or newer · Windows is next</span>
+        <span class="mono small download-note">Free · Version 0.1 · <span class="req">Mac with Apple silicon, macOS 14.4 or newer</span> · <a class="other-os" href="https://github.com/mondayrunner/oorapp/releases/latest/download/Oorapp-windows-setup.exe">Also for Windows</a></span>
+        <div class="install" hidden></div>
       </div>
 
       <div class="window" aria-label="A meeting in Oorapp">
@@ -146,7 +147,7 @@
           <details><summary>How good is the transcription?</summary><p>Meetings use Whisper large-v3-turbo on your Mac. It handles English, Dutch, German, French, Spanish, Italian and Portuguese, or detects the language itself. The app is tested against a set of recorded calls with people talking over each other, echo through speakers and music in the background.</p></details>
           <details><summary>What does macOS ask permission for?</summary><p>The microphone, to hear you, and system audio recording, to hear the other side. For notes also Input Monitoring, to hear the note key in other apps, and Accessibility, to paste the text there. On first use Oorapp downloads its speech models once: 1.6 GB for meetings and 670 MB for notes.</p></details>
           <details><summary>Why not Granola, Otter or Fireflies?</summary><p>They are good products that work in the cloud, often with a bot or a subscription. Oorapp is for when you want the recording and the text on your own machine.</p></details>
-          <details><summary>Is there a Windows version?</summary><p>Windows is next. Follow the repository on GitHub to hear when it is ready.</p></details>
+          <details><summary>Is there a Windows version?</summary><p>Yes, as an early version that has not been tested on many machines yet. Recording, transcribing and notes are all there; transcription runs on the processor, so a long meeting takes a while. If something does not work, please say so in the <a href="https://github.com/mondayrunner/oorapp/issues" style="text-decoration:underline">issues on GitHub</a>.</p></details>
         </div>
       </section>
 
@@ -154,7 +155,7 @@
         <h2>Try it on your next call, it takes a minute to set up.</h2>
         <p>Download Oorapp, allow the microphone and system audio, and press Start recording. The speech model downloads once on first use.</p>
         <div class="buttons" style="justify-content:center">
-          <a class="btn btn-red" href="https://github.com/mondayrunner/oorapp/releases/latest">Download for macOS</a>
+          <a class="btn btn-red download" href="https://github.com/mondayrunner/oorapp/releases/latest/download/Oorapp-mac.dmg"><span class="os-label">Download for macOS</span></a>
           <a class="btn btn-line" href="https://github.com/mondayrunner/oorapp">Read the code on GitHub</a>
         </div>
       </section>
@@ -174,6 +175,44 @@
   </footer>
 
   <script>
+    // The download buttons follow the visitor's computer: the Mac or the
+    // Windows installer straight away, and after the click how to install it.
+    const RELEASES = "https://github.com/mondayrunner/oorapp/releases/latest/download/";
+    const ua = navigator.userAgent;
+    const os = /Windows/.test(ua) ? "windows" : /Macintosh|Mac OS X/.test(ua) ? "mac" : "other";
+    const steps = {
+      mac: ["Open Oorapp-mac.dmg and drag Oorapp to Applications.", "The first time, right-click Oorapp and choose Open: the app is free and not notarized by Apple.", "Allow the microphone and system audio when macOS asks, then press Start recording."],
+      windows: ["Run Oorapp-windows-setup.exe.", "If Windows SmartScreen warns, choose More info and then Run anyway: the app is free and not signed by Microsoft.", "Open Oorapp from the Start menu and press Start recording."],
+    };
+    if (os === "windows") {
+      document.querySelectorAll(".download").forEach((a) => {
+        a.href = RELEASES + "Oorapp-windows-setup.exe";
+        a.querySelector(".os-label").textContent = "Download for Windows";
+        a.querySelector(".os-icon")?.remove();
+      });
+      const note = document.querySelector(".download-note");
+      note.querySelector(".req").textContent = "Windows 10 or 11, early version";
+      const other = note.querySelector(".other-os");
+      other.href = RELEASES + "Oorapp-mac.dmg";
+      other.textContent = "Also for Mac";
+    } else if (os === "other") {
+      document.querySelectorAll(".download").forEach((a) => {
+        a.href = "https://github.com/jankeesvw/omarchy-meeting-recorder";
+        a.querySelector(".os-label").textContent = "On Linux? Get the original";
+        a.querySelector(".os-icon")?.remove();
+      });
+    }
+    document.querySelectorAll(".download").forEach((a) =>
+      a.addEventListener("click", () => {
+        const list = steps[os];
+        const box = document.querySelector(".install");
+        if (!list || !box) return;
+        box.innerHTML = "<strong>Your download has started.</strong><ol>" + list.map((s) => "<li>" + s + "</li>").join("") + "</ol>";
+        box.hidden = false;
+        if (a.closest(".closing")) box.scrollIntoView({ behavior: "smooth", block: "center" });
+      }),
+    );
+
     // The pill's voice: bars with staggered timing.
     const bars = document.querySelector(".hud .bars");
     for (let i = 0; i < 24; i++) {

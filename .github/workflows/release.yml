@@ -87,3 +87,19 @@ jobs:
           prerelease: false
           includeUpdaterJson: true
           args: ${{ matrix.args }}
+
+  # Copies of the installers under names that never change, so the site can
+  # link straight to /releases/latest/download/Oorapp-mac.dmg whatever the version.
+  stable-names:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Upload Oorapp-mac.dmg and Oorapp-windows-setup.exe
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release download "$TAG" -R "$GITHUB_REPOSITORY" -p '*_aarch64.dmg' -p '*_x64-setup.exe'
+          cp *_aarch64.dmg Oorapp-mac.dmg
+          cp *_x64-setup.exe Oorapp-windows-setup.exe
+          gh release upload "$TAG" -R "$GITHUB_REPOSITORY" Oorapp-mac.dmg Oorapp-windows-setup.exe --clobber
