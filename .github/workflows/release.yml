@@ -6,6 +6,7 @@
 #   TAURI_SIGNING_PRIVATE_KEY   the updater key (~/.config/oorapp/updater.key)
 #   APPLE_CERTIFICATE           base64 of the signing .p12, so macOS keeps the
 #   APPLE_CERTIFICATE_PASSWORD  app's permissions from one update to the next
+#                               (imported by hand below, not by Tauri)
 name: Release
 
 on:
@@ -45,28 +46,33 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # The Oorapp certificate is self-signed; codesign only takes it once the
-      # runner trusts it for code signing.
-      - name: Trust the Oorapp signing certificate
+      # The Oorapp certificate is self-signed, which Tauri's own certificate
+      # import does not accept. So it goes into a keychain here, and Tauri only
+      # gets its fingerprint, as on a developer's Mac.
+      - name: Put the Oorapp signing certificate in a keychain
         if: matrix.platform == 'macos-latest'
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
         run: |
+          KEYCHAIN="$RUNNER_TEMP/oorapp.keychain-db"
           echo "$APPLE_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/oorapp.p12"
-          openssl pkcs12 -in "$RUNNER_TEMP/oorapp.p12" -nokeys -passin env:APPLE_CERTIFICATE_PASSWORD -legacy -out "$RUNNER_TEMP/oorapp.pem" \
-            || openssl pkcs12 -in "$RUNNER_TEMP/oorapp.p12" -nokeys -passin env:APPLE_CERTIFICATE_PASSWORD -out "$RUNNER_TEMP/oorapp.pem"
-          sudo security add-trusted-cert -d -r trustRoot -p codeSign -k /Library/Keychains/System.keychain "$RUNNER_TEMP/oorapp.pem"
+          security create-keychain -p ci "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p ci "$KEYCHAIN"
+          security import "$RUNNER_TEMP/oorapp.p12" -k "$KEYCHAIN" -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k ci "$KEYCHAIN"
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
           rm -f "$RUNNER_TEMP/oorapp.p12"
+          security find-identity -p codesigning "$KEYCHAIN"
 
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: Oorapp
+          # Fingerprint of the Oorapp certificate (~/.config/oorapp/signing.p12).
+          APPLE_SIGNING_IDENTITY: ${{ matrix.platform == 'macos-latest' && 'F3C2449B956625BA78F086FC62F6480DC2CAFE52' || '' }}
         with:
           tagName: v__VERSION__
           releaseName: Oorapp v__VERSION__
