@@ -382,6 +382,12 @@ const nav: { key: View; label: string }[] = [
                   Accessibility
                 </button>
               </p>
+              <p class="mt-1.5 text-muted">
+                Allowed it already?
+                <button class="font-semibold text-ink underline-offset-2 hover:underline" @click="api.restartApp().catch((e) => toast(String(e)))">
+                  Restart Oorapp
+                </button>
+              </p>
             </div>
             <template v-if="status.note !== null">
               <span class="font-semibold text-accent">● Speaking a note</span>, let go to paste it.

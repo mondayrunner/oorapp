@@ -147,6 +147,7 @@ export const api = {
   requestPermission: (which: "keys" | "paste") => invoke("request_permission", { which }),
   checkUpdate: () => invoke<{ version: string; notes: string | null } | null>("check_update"),
   installUpdate: () => invoke("install_update"),
+  restartApp: () => invoke("restart_app"),
   connectClaude: (target: "code" | "desktop") => invoke<string>("connect_claude", { target }),
   meeting: () => invoke<MeetingData | null>("meeting_data"),
   peaks: (bins: number) => invoke<Peaks>("peaks", { bins }),

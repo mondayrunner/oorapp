@@ -847,6 +847,19 @@ fn dirs_home() -> PathBuf {
     oorapp_core::paths::home()
 }
 
+/// Restarts Oorapp, for a permission macOS only shows a new process.
+#[tauri::command]
+fn restart_app(app: AppHandle) -> Result<(), String> {
+    let busy = matches!(
+        app.state::<Hub>().inner.lock().unwrap().phase,
+        Phase::Recording | Phase::Saving | Phase::Transcribing
+    );
+    if busy {
+        return Err("Finish the recording first".into());
+    }
+    app.restart();
+}
+
 #[tauri::command]
 fn toggle_note(app: AppHandle) {
     notes::toggle(&app);
@@ -1423,6 +1436,7 @@ pub fn run() {
             toggle_note,
             set_note_shortcut,
             connect_claude,
+            restart_app,
             request_permission,
             updates::check_update,
             updates::install_update,
