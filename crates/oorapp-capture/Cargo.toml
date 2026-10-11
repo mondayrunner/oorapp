@@ -1,0 +1,10 @@
+[package]
+name = "oorapp-capture"
+description = "Live audio for Oorapp: the microphone and what the computer plays, as two tracks"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+cpal = "0.18"
+oorapp-core.workspace = true

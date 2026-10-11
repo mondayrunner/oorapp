@@ -1,0 +1,399 @@
+//! Actions: your own scripts, run on a finished meeting from the done page.
+//!
+//! They live in `config.toml`, each with a name for the menu and a command:
+//!
+//! ```toml
+//! [[action]]
+//! name = "Store transcript in Obsidian"
+//! command = "~/.local/bin/meeting-to-obsidian"
+//! ```
+//!
+//! The command runs through `sh -c` (`cmd /C` on Windows) in the meeting
+//! folder, with that folder as `$1` and the meeting described in `MEETING_*` variables. What it prints last
+//! is shown when it is done; a link there (web or `obsidian://`) goes behind an
+//! Open button instead. An action may change the meeting itself: when it
+//! edited the transcript or the meeting file, the done page reads them again.
+//!
+//! An action with `auto = true` also runs on its own, as soon as a meeting's
+//! transcript is done (and its chapters, when an agent writes them).
+
+use std::path::Path;
+use std::process::{Command, Stdio};
+
+use crate::meeting::Manifest;
+
+/// How actions work, for people and their agents; the done page links here
+/// when there are none yet.
+pub const DOCS: &str =
+    "https://github.com/sitelane/oorapp/blob/main/docs/actions.md";
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Action {
+    pub name: String,
+    pub command: String,
+    /// Runs by itself when a transcript is done, besides being in the menu.
+    pub auto: bool,
+}
+
+/// The actions in the config file, in its order. Read every time, so an edit
+/// shows up without restarting the app.
+pub fn load() -> Vec<Action> {
+    std::fs::read_to_string(crate::models::config_file())
+        .map(|text| parse(&text))
+        .unwrap_or_default()
+}
+
+/// The actions that run on their own when a transcript is done, in the order
+/// of the config file.
+pub fn automatic() -> Vec<Action> {
+    load().into_iter().filter(|a| a.auto).collect()
+}
+
+/// The `[[action]]` tables of a config file. A line format rather than a full
+/// TOML parser: `key = "value"` pairs, `#` comments, nothing nested.
+fn parse(text: &str) -> Vec<Action> {
+    let mut actions = Vec::new();
+    let mut current: Option<Action> = None;
+    let mut finish = |current: &mut Option<Action>| {
+        if let Some(action) = current.take()
+            && !action.name.is_empty()
+            && !action.command.is_empty()
+        {
+            actions.push(action);
+        }
+    };
+    for line in text.lines() {
+        let line = line.trim();
+        if line.starts_with('[') {
+            finish(&mut current);
+            if line == "[[action]]" {
+                current = Some(Action {
+                    name: String::new(),
+                    command: String::new(),
+                    auto: false,
+                });
+            }
+            continue;
+        }
+        let Some(action) = current.as_mut() else {
+            continue;
+        };
+        let Some((key, value)) = line.split_once('=') else {
+            continue;
+        };
+        let value = unquote(value.trim());
+        match key.trim() {
+            "name" => action.name = value,
+            "command" => action.command = value,
+            "auto" => action.auto = value == "true",
+            _ => {}
+        }
+    }
+    finish(&mut current);
+    actions
+}
+
+/// A TOML string: `"..."` with backslash escapes, or `'...'` taken literally.
+fn unquote(value: &str) -> String {
+    if let Some(inner) = value.strip_prefix('\'').and_then(|v| v.split('\'').next()) {
+        return inner.to_owned();
+    }
+    let Some(rest) = value.strip_prefix('"') else {
+        return value.split('#').next().unwrap_or("").trim().to_owned();
+    };
+    let mut out = String::new();
+    let mut chars = rest.chars();
+    while let Some(c) = chars.next() {
+        match c {
+            '"' => break,
+            '\\' => match chars.next() {
+                Some('n') => out.push('\n'),
+                Some('t') => out.push('\t'),
+                Some(other) => out.push(other),
+                None => break,
+            },
+            c => out.push(c),
+        }
+    }
+    out
+}
+
+/// How an action ended: the last thing it printed, and a link in it if any.
+pub struct Outcome {
+    pub message: String,
+    pub url: Option<String>,
+}
+
+/// Runs `action` on the meeting in `dir`. Blocking; the caller runs it off the
+/// main thread.
+pub fn run(action: &Action, dir: &Path, manifest: &Manifest) -> Result<Outcome, String> {
+    let date = crate::local_date(manifest.started_at);
+    let audio = ["audio.ogg", "mic.ogg", "computer.ogg"]
+        .iter()
+        .map(|f| dir.join(f))
+        .find(|p| p.exists());
+    let output = shell(&action.command, dir)
+        .current_dir(dir)
+        .env("PATH", crate::paths::search_path())
+        .env("MEETING_DIR", dir)
+        .env("MEETING_TRANSCRIPT", dir.join("transcript.md"))
+        .env(
+            "MEETING_MANIFEST",
+            crate::meeting::find(dir).unwrap_or_default(),
+        )
+        .env("MEETING_TITLE", &manifest.title)
+        .env("MEETING_DATE", &date)
+        .env("MEETING_STARTED_AT", manifest.started_at.to_string())
+        .env("MEETING_DURATION", manifest.duration_secs.to_string())
+        .env("MEETING_LANGUAGE", &manifest.language)
+        .env("MEETING_SPEAKERS", manifest.people().join("\n"))
+        .env("MEETING_AUDIO", audio.unwrap_or_default())
+        .stdin(Stdio::null())
+        .output()
+        .map_err(|e| e.to_string())?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let why = last_line(&stderr)
+            .or_else(|| last_line(&stdout))
+            .unwrap_or_else(|| format!("exited with {}", output.status));
+        return Err(why);
+    }
+    let line = last_line(&stdout).unwrap_or_default();
+    let url = find_url(&line);
+    // The link goes behind the Open button, so the message is only the words.
+    let message = match &url {
+        Some(url) => line.replace(url.as_str(), ""),
+        None => line,
+    };
+    let message = message.trim().trim_end_matches(':').trim().to_owned();
+    Ok(Outcome {
+        message: if message.is_empty() {
+            "Done".to_owned()
+        } else {
+            message
+        },
+        url,
+    })
+}
+
+/// The command through the platform's shell: `sh -c` with the meeting folder
+/// as `$1` on macOS and Linux, `cmd /C` with it as `%MEETING_DIR%` on Windows.
+fn shell(command: &str, dir: &Path) -> Command {
+    #[cfg(unix)]
+    {
+        let mut c = Command::new("sh");
+        c.arg("-c").arg(command).arg("meeting-action").arg(dir);
+        c
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        let _ = dir;
+        let mut c = Command::new("cmd");
+        c.arg("/C").raw_arg(command).creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+        c
+    }
+}
+
+/// `action "<name>" <meeting>`: runs one of your actions on a meeting folder
+/// or `.meeting-recorder` file, exactly as the done page does, and prints how
+/// it went. For trying an action out, by you or by your agent.
+pub fn cli(args: &[String]) -> std::process::ExitCode {
+    use std::process::ExitCode;
+    let actions = load();
+    let [name, meeting] = args else {
+        eprintln!(
+            "Usage: {} action \"<name>\" <meeting folder>",
+            crate::APP_NAME
+        );
+        eprintln!();
+        if actions.is_empty() {
+            eprintln!(
+                "No actions yet; add them to {}",
+                crate::models::config_file().display()
+            );
+            eprintln!("See {DOCS}");
+        } else {
+            eprintln!("Actions in {}:", crate::models::config_file().display());
+            for action in &actions {
+                let auto = if action.auto {
+                    "  (runs on its own when a transcript is done)"
+                } else {
+                    ""
+                };
+                eprintln!("  {}{auto}", action.name);
+            }
+        }
+        return ExitCode::from(2);
+    };
+    let Some(action) = actions.iter().find(|a| &a.name == name) else {
+        eprintln!(
+            "No action called \"{name}\" in {}",
+            crate::models::config_file().display()
+        );
+        return ExitCode::FAILURE;
+    };
+    let Some((dir, manifest)) = crate::meeting::open(Path::new(meeting)) else {
+        eprintln!("No meeting in {meeting}");
+        return ExitCode::FAILURE;
+    };
+    match run(action, &dir, &manifest) {
+        Ok(outcome) => {
+            println!("{}", outcome.message);
+            ExitCode::SUCCESS
+        }
+        Err(why) => {
+            eprintln!("{} failed: {why}", action.name);
+            ExitCode::FAILURE
+        }
+    }
+}
+
+/// When the transcript and the meeting file of `dir` last changed, and their
+/// sizes: compared before and after an action to see whether it edited them.
+pub fn fingerprint(dir: &Path) -> Vec<Option<(std::time::SystemTime, u64)>> {
+    [Some(dir.join("transcript.md")), crate::meeting::find(dir)]
+        .into_iter()
+        .map(|path| {
+            let meta = std::fs::metadata(path?).ok()?;
+            Some((meta.modified().ok()?, meta.len()))
+        })
+        .collect()
+}
+
+fn last_line(text: &str) -> Option<String> {
+    text.lines()
+        .rev()
+        .map(str::trim)
+        .find(|l| !l.is_empty())
+        .map(|l| l.chars().take(200).collect())
+}
+
+/// A link to open: a web page, or a note in Obsidian.
+fn find_url(text: &str) -> Option<String> {
+    text.split_whitespace()
+        .find(|w| {
+            ["https://", "http://", "obsidian://"]
+                .iter()
+                .any(|s| w.starts_with(s))
+        })
+        .map(|w| w.trim_end_matches(['.', ',', ')', '"', '\'']).to_owned())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reads_actions_and_skips_the_rest() {
+        let config = r#"
+model = "large-v3-turbo"  # not an action
+
+[[action]]
+name = "Copy to Obsidian"
+command = "~/.local/bin/meeting-to-obsidian"
+
+[[action]]
+name = 'Publish'   # a comment
+command = 'publish "$1" --secret'
+
+[[action]]
+name = "Store in my notes"
+command = "~/bin/store-meeting"
+auto = true   # runs on its own when the transcript is done
+
+[[action]]
+name = "No command, ignored"
+
+[other]
+name = "not an action"
+"#;
+        assert_eq!(
+            parse(config),
+            [
+                Action {
+                    name: "Copy to Obsidian".into(),
+                    command: "~/.local/bin/meeting-to-obsidian".into(),
+                    auto: false,
+                },
+                Action {
+                    name: "Publish".into(),
+                    command: "publish \"$1\" --secret".into(),
+                    auto: false,
+                },
+                Action {
+                    name: "Store in my notes".into(),
+                    command: "~/bin/store-meeting".into(),
+                    auto: true,
+                },
+            ]
+        );
+        let parsed = parse(config);
+        let automatic: Vec<&str> = parsed
+            .iter()
+            .filter(|a| a.auto)
+            .map(|a| a.name.as_str())
+            .collect();
+        assert_eq!(automatic, ["Store in my notes"]);
+    }
+
+    #[test]
+    fn a_link_goes_behind_the_button_and_out_of_the_message() {
+        let dir = std::env::temp_dir().join(format!("mr-action-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let manifest = Manifest {
+            title: "Weekly".into(),
+            started_at: 0,
+            duration_secs: 60,
+            format: crate::export::Format::Mono,
+            language: "en".into(),
+            speakers: vec!["Maya".into(), "Tom".into()],
+            labels: Vec::new(),
+            imported: None,
+            speaker_count: None,
+            model: None,
+            chapters: Vec::new(),
+            chapters_by: None,
+            kind: None,
+            target_app: None,
+        };
+        let action = |command: &str| Action {
+            name: "Test".into(),
+            command: command.into(),
+            auto: false,
+        };
+        let saved = run(
+            &action("echo busy; echo Saved obsidian://open?file=Weekly"),
+            &dir,
+            &manifest,
+        )
+        .unwrap();
+        assert_eq!(saved.message, "Saved");
+        assert_eq!(saved.url.as_deref(), Some("obsidian://open?file=Weekly"));
+        let named = run(
+            &action(r#"echo "$MEETING_TITLE by $(echo "$MEETING_SPEAKERS" | head -1)""#),
+            &dir,
+            &manifest,
+        )
+        .unwrap();
+        assert_eq!(named.message, "Weekly by Maya");
+        assert!(named.url.is_none());
+        let failed = run(&action("echo nope >&2; exit 3"), &dir, &manifest);
+        assert_eq!(failed.err().as_deref(), Some("nope"));
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn a_link_in_the_output_is_found() {
+        assert_eq!(
+            find_url("Published: https://gist.github.com/abc123."),
+            Some("https://gist.github.com/abc123".into())
+        );
+        assert_eq!(
+            find_url("Saved obsidian://open?vault=Writing&file=Meetings%2FWeekly"),
+            Some("obsidian://open?vault=Writing&file=Meetings%2FWeekly".into())
+        );
+        assert_eq!(find_url("Copied to the vault"), None);
+    }
+}

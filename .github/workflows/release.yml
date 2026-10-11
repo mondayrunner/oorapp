@@ -1,82 +1,69 @@
+# Builds Oorapp for macOS (Apple silicon) and Windows when a version tag is
+# pushed, and puts the installers on a draft GitHub release together with
+# latest.json, which the app's updater reads once the release is published.
+#
+# Secrets:
+#   TAURI_SIGNING_PRIVATE_KEY   the updater key (~/.config/oorapp/updater.key)
+#   APPLE_CERTIFICATE           base64 of the signing .p12, so macOS keeps the
+#   APPLE_CERTIFICATE_PASSWORD  app's permissions from one update to the next
 name: Release
-
-# Builds the release tarballs for x86_64 and aarch64 and, on a version tag
-# (v1.2.3), attaches them to that release, created as a draft when it does not
-# exist yet. Pull requests that touch the build only build, so both
-# architectures are seen to compile before a release depends on it.
 
 on:
   push:
     tags: ["v*"]
-  pull_request:
-    paths:
-      - .github/workflows/release.yml
-      - packaging/**
-      - .cargo/**
-      - Cargo.lock
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
         include:
-          - arch: x86_64
-            runner: ubuntu-24.04
-          - arch: aarch64
-            runner: ubuntu-24.04-arm
-    runs-on: ${{ matrix.runner }}
-    # Debian 13 has libadwaita 1.7 (Ubuntu 24.04 is at 1.5) and, unlike the
-    # archlinux image, an arm64 image. Its older glibc runs on Arch as well.
-    container: debian:trixie
-    timeout-minutes: 60
+          - platform: macos-latest
+            args: --target aarch64-apple-darwin
+          - platform: windows-latest
+            args: ""
+    runs-on: ${{ matrix.platform }}
     steps:
-      - name: Install build dependencies
-        run: |
-          apt-get update
-          apt-get install -y --no-install-recommends build-essential ca-certificates cmake clang libclang-dev curl git libssl-dev pkg-config libgtk-4-dev libadwaita-1-dev libvulkan-dev glslc
-
       - uses: actions/checkout@v4
 
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
       - uses: dtolnay/rust-toolchain@stable
-
-      - name: Tag matches Cargo.toml
-        if: startsWith(github.ref, 'refs/tags/v')
-        run: grep -qx "version = \"${GITHUB_REF_NAME#v}\"" Cargo.toml
-
-      - name: Build
-        run: cargo build --release --locked
-
-      - name: Package
-        run: packaging/release-tarball.sh
-
-      - uses: actions/upload-artifact@v4
         with:
-          name: omarchy-meeting-recorder-${{ matrix.arch }}-linux
-          path: |
-            dist/*.tar.gz
-            dist/*.tar.gz.sha256
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin' || '' }}
 
-  release:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: build
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          merge-multiple: true
+      - uses: swatinem/rust-cache@v2
 
-      - name: Attach to the release
+      - run: pnpm install --frozen-lockfile
+
+      - uses: tauri-apps/tauri-action@v0
         env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          TAG: ${{ github.ref_name }}
-        run: |
-          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --draft --verify-tag --title "$TAG" --notes ""
-          # No --clobber: the Omarchy package repository pins the digest of what is published.
-          gh release upload "$TAG" *.tar.gz *.tar.gz.sha256
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: Oorapp
+        with:
+          tagName: v__VERSION__
+          releaseName: Oorapp v__VERSION__
+          releaseBody: |
+            Download the installer for your computer below.
+
+            macOS (Apple silicon): open the .dmg and drag Oorapp to Applications. The first time, right-click Oorapp and choose Open, because the app is not notarized by Apple.
+            Windows: run the -setup.exe. Windows SmartScreen may warn the first time; choose More info, then Run anyway.
+
+            Installed already? Oorapp updates itself.
+          releaseDraft: true
+          prerelease: false
+          includeUpdaterJson: true
+          args: ${{ matrix.args }}

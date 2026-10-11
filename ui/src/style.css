@@ -1,0 +1,89 @@
+@import "tailwindcss";
+
+/* Sitelane colours: warm cream and ink, red for your side, orange for the
+   other side. Light or dark follows the system. */
+:root {
+  --bg: #f7f5f4;
+  --card: #ffffff;
+  --card-2: #efebe9;
+  --line: #e7e2df;
+  --text: #1c1917;
+  --muted: #78716c;
+  --accent: #fe5c45;
+  --accent-hover: #e44c35;
+  --on-accent: #ffffff;
+  --mic: #fe5c45;
+  --computer: #fd9046;
+  --danger: #dc2626;
+  --row-active: #fff1f0;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1c1917;
+    --card: #26221f;
+    --card-2: #2f2a27;
+    --line: #3a3431;
+    --text: #f7f5f4;
+    --muted: #a8a29e;
+    --accent-hover: #ff7461;
+    --row-active: #3a2622;
+    color-scheme: dark;
+  }
+}
+
+@theme {
+  --color-bg: var(--bg);
+  --color-card: var(--card);
+  --color-card-2: var(--card-2);
+  --color-line: var(--line);
+  --color-ink: var(--text);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-on-accent: var(--on-accent);
+  --color-mic: var(--mic);
+  --color-computer: var(--computer);
+  --color-danger: var(--danger);
+  --color-row-active: var(--row-active);
+  --font-sans: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "SF Mono", "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
+}
+
+input,
+textarea,
+.selectable {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+button {
+  cursor: default;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 4px;
+}

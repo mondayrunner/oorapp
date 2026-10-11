@@ -1,0 +1,48 @@
+[package]
+name = "oorapp-app"
+description = "Oorapp: records meetings in two tracks and transcribes them on your own machine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "oorapp_app"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "oorapp-app"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2.7", features = [] }
+
+[dependencies]
+async-channel = "2.5"
+jiff = "0.2"
+oorapp-capture = { path = "../crates/oorapp-capture" }
+oorapp-core.workspace = true
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri = { version = "2.12", features = ["tray-icon", "protocol-asset", "image-png", "macos-private-api"] }
+arboard = "3.6"
+enigo = "0.6"
+tauri-plugin-dialog = "2.8"
+tauri-plugin-global-shortcut = "2.4"
+tauri-plugin-opener = "2.7"
+tauri-plugin-process = "2.4"
+tauri-plugin-single-instance = "2.5"
+tauri-plugin-updater = "2.13"
+
+# Speech recognition on the GPU: Metal on macOS; Vulkan elsewhere with the
+# vulkan feature.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-app-kit = { version = "0.3", features = ["NSWorkspace", "NSRunningApplication"] }
+objc2-foundation = "0.3"
+core-foundation = "0.10"
+core-graphics = "0.25"
+oorapp-core = { workspace = true, features = ["metal"] }
+
+[features]
+# GPU speech recognition on Windows and Linux through Vulkan. Needs the Vulkan
+# SDK to build; without it whisper runs on the CPU.
+vulkan = ["oorapp-core/vulkan"]

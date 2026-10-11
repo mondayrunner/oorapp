@@ -1,0 +1,84 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Oorapp",
+  "version": "0.1.0",
+  "identifier": "nl.sitelane.oorapp",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "pnpm build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Oorapp",
+        "width": 1180,
+        "height": 800,
+        "minWidth": 820,
+        "minHeight": 600,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "dragDropEnabled": true
+      }
+    ],
+    "security": {
+      "csp": null,
+      "assetProtocol": {
+        "enable": true,
+        "scope": [
+          "$DOCUMENT/Meetings/**",
+          "$HOME/Documents/Meetings/**"
+        ]
+      }
+    },
+    "macOSPrivateApi": true
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "app",
+      "dmg",
+      "nsis"
+    ],
+    "category": "Productivity",
+    "shortDescription": "Record meetings and transcribe them on your own machine",
+    "copyright": "MIT. Based on omarchy-meeting-recorder by Jankees van Woezik.",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "macOS": {
+      "minimumSystemVersion": "14.4",
+      "entitlements": "entitlements.plist"
+    },
+    "fileAssociations": [
+      {
+        "ext": [
+          "oorapp",
+          "meeting-recorder"
+        ],
+        "name": "Oorapp meeting",
+        "description": "A meeting recorded with Oorapp",
+        "role": "Viewer",
+        "mimeType": "application/x-oorapp-meeting"
+      }
+    ],
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDQ0N0FDNjVDNTdBOTJBQzkKUldUSktxbFhYTVo2Ukd4ZGlFN1FYcTBuSFQvdVFDYldXZEFuQ2s1RGt6SGNYVUU1VjBEaUMwejIK",
+      "endpoints": [
+        "https://github.com/mondayrunner/oorapp/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
+}
