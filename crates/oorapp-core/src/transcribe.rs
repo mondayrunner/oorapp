@@ -82,23 +82,74 @@ fn emit(events: &Events, event: Event) {
 /// format (s16le, 48 kHz, stereo); anything else is decoded by `codec`.
 pub fn load_track(path: &Path) -> Result<Vec<f32>, String> {
     if path.extension().is_some_and(|e| e == "raw") {
-        let bytes = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
-        let frame = 2 * CHANNELS as usize;
-        let mono: Vec<f32> = bytes
-            .chunks_exact(frame)
-            .map(|f| {
-                let sum: f32 = f
-                    .as_chunks::<2>()
-                    .0
-                    .iter()
-                    .map(|s| f32::from(i16::from_le_bytes(*s)))
-                    .sum();
-                sum / CHANNELS as f32 / 32768.0
-            })
-            .collect();
-        Ok(downsample(&mono, RATE as usize / WHISPER_RATE))
+        let file = std::fs::File::open(path).map_err(|e| format!("{}: {e}", path.display()))?;
+        load_raw(file, RATE as usize / WHISPER_RATE).map_err(|e| format!("{}: {e}", path.display()))
     } else {
         crate::codec::decode_mono(path, WHISPER_RATE as u32)
+    }
+}
+
+/// A raw track (s16le, RATE, CHANNELS) as mono, decimated by `factor` as
+/// `downsample` does, a second at a time: a two-hour meeting would otherwise
+/// sit in memory three times over.
+fn load_raw(source: impl std::io::Read, factor: usize) -> std::io::Result<Vec<f32>> {
+    let mut reader = std::io::BufReader::with_capacity(1 << 20, source);
+    let kernel = lowpass(factor.max(1));
+    let half = kernel.len() / 2;
+    let frame = 2 * CHANNELS as usize;
+    let mut block = vec![0u8; frame * RATE as usize];
+    // `buf` holds the mono samples from `base` on.
+    let (mut buf, mut base, mut out) = (Vec::<f32>::new(), 0usize, Vec::new());
+    loop {
+        let mut filled = 0;
+        while filled < block.len() {
+            match reader.read(&mut block[filled..]) {
+                Ok(0) => break,
+                Ok(n) => filled += n,
+                Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+                Err(e) => return Err(e),
+            }
+        }
+        let eof = filled < block.len();
+        buf.extend(block[..filled - filled % frame].chunks_exact(frame).map(|f| {
+            let sum: f32 = f
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|s| f32::from(i16::from_le_bytes(*s)))
+                .sum();
+            sum / CHANNELS as f32 / 32768.0
+        }));
+        let available = base + buf.len();
+        loop {
+            let center = out.len() * factor;
+            let ready = if eof { center + factor <= available } else { center + half < available };
+            if !ready {
+                break;
+            }
+            out.push(
+                kernel
+                    .iter()
+                    .enumerate()
+                    .map(|(k, weight)| {
+                        let i = center as isize + k as isize - half as isize;
+                        if i < 0 || i as usize >= available {
+                            0.0
+                        } else {
+                            buf[i as usize - base] * weight
+                        }
+                    })
+                    .sum(),
+            );
+        }
+        if eof {
+            return Ok(out);
+        }
+        let keep_from = (out.len() * factor).saturating_sub(half);
+        if keep_from > base {
+            buf.drain(..keep_from - base);
+            base = keep_from;
+        }
     }
 }
 
@@ -107,6 +158,29 @@ fn downsample(input: &[f32], factor: usize) -> Vec<f32> {
     if factor <= 1 {
         return input.to_vec();
     }
+    let kernel = lowpass(factor);
+    let half = kernel.len() / 2;
+    (0..input.len() / factor)
+        .map(|n| {
+            let center = n * factor;
+            kernel
+                .iter()
+                .enumerate()
+                .map(|(k, weight)| {
+                    let i = center as isize + k as isize - half as isize;
+                    if i < 0 || i as usize >= input.len() {
+                        0.0
+                    } else {
+                        input[i as usize] * weight
+                    }
+                })
+                .sum()
+        })
+        .collect()
+}
+
+/// The low-pass kernel in front of decimating by `factor`.
+fn lowpass(factor: usize) -> Vec<f32> {
     const TAPS: usize = 63;
     // Cut off a little below the new Nyquist frequency.
     let cutoff = 0.9 / (2.0 * factor as f64);
@@ -126,25 +200,7 @@ fn downsample(input: &[f32], factor: usize) -> Vec<f32> {
         .collect();
     let sum: f32 = kernel.iter().sum();
     kernel.iter_mut().for_each(|k| *k /= sum);
-
-    let half = TAPS / 2;
-    (0..input.len() / factor)
-        .map(|n| {
-            let center = n * factor;
-            kernel
-                .iter()
-                .enumerate()
-                .map(|(k, weight)| {
-                    let i = center as isize + k as isize - half as isize;
-                    if i < 0 || i as usize >= input.len() {
-                        0.0
-                    } else {
-                        input[i as usize] * weight
-                    }
-                })
-                .sum()
-        })
-        .collect()
+    kernel
 }
 
 fn rms(samples: &[f32]) -> f32 {
@@ -1052,7 +1108,7 @@ fn load_whisper(events: &Events, abort: &Abort) -> Result<WhisperContext, String
     emit(events, Event::Progress(0.0));
     whisper_rs::install_logging_hooks();
     let mut context_params = WhisperContextParameters::default();
-    context_params.use_gpu(cfg!(feature = "vulkan"));
+    context_params.use_gpu(cfg!(any(feature = "metal", feature = "vulkan")));
     // Word times aligned on the attention heads (DTW): the plain token times
     // drift by up to a second, too much to tell where one speaker takes over.
     // A model file of unknown kind gets plain token times.
@@ -1698,6 +1754,27 @@ fn usage() -> ExitCode {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn a_raw_track_read_a_second_at_a_time_matches_reading_it_whole() {
+        let frames = RATE as usize * 3 + 1234;
+        let mut bytes = Vec::new();
+        let mut mono = Vec::new();
+        for i in 0..frames {
+            let l = ((i as f64 * 0.013).sin() * 12000.0) as i16;
+            let r = ((i as f64 * 0.0071).cos() * 9000.0) as i16;
+            bytes.extend(l.to_le_bytes());
+            bytes.extend(r.to_le_bytes());
+            mono.push((f32::from(l) + f32::from(r)) / 2.0 / 32768.0);
+        }
+        let factor = RATE as usize / WHISPER_RATE;
+        let whole = downsample(&mono, factor);
+        let streamed = load_raw(&bytes[..], factor).unwrap();
+        assert_eq!(whole.len(), streamed.len());
+        let worst = whole.iter().zip(&streamed).map(|(a, b)| (a - b).abs()).fold(0.0, f32::max);
+        assert!(worst < 1e-6, "differs by {worst}");
+    }
+
     use super::*;
 
     #[test]
