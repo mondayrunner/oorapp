@@ -461,7 +461,7 @@ fn finish(app: &AppHandle, recording: &Recording) -> Result<Option<bool>, String
 
     // Keep it like a meeting: the audio, the transcript and the manifest.
     let out = session::free_output_dir(note.started_at, &note.title);
-    let (audio, _tracks, mut manifest) = session::save_recording(staging, &out, &note);
+    let (audio, _tracks, mut manifest) = session::save_recording(staging, &out, &note, |_| {});
     let you = settings::load_your_name();
     manifest.kind = Some("note".to_owned());
     manifest.target_app = target.map(|t| t.name);

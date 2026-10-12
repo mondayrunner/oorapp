@@ -417,7 +417,10 @@ fn finish_recording(app: AppHandle, staging: PathBuf, note: RecordingNote) {
     std::thread::spawn(move || {
         let since = Instant::now();
         let out = session::free_output_dir(note.started_at, &note.title);
-        let (audio, tracks, manifest) = session::save_recording(&staging, &out, &note);
+        let (audio, tracks, manifest) = session::save_recording(&staging, &out, &note, |p| {
+            app.state::<Hub>().inner.lock().unwrap().progress = p;
+            emit_status(&app);
+        });
         {
             let hub = app.state::<Hub>();
             let mut inner = hub.inner.lock().unwrap();

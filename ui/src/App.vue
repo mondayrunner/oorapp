@@ -70,8 +70,12 @@ async function refreshMeeting() {
   historyRefresh.value++;
 }
 
+// Recordings put off with Later stay out of sight until the app restarts.
+const later = new Set<string>();
+
 async function refreshUnfinished() {
-  unfinished.value = phase.value === "idle" ? await api.unfinished() : [];
+  const found = phase.value === "idle" ? await api.unfinished() : [];
+  unfinished.value = found.filter((u) => !later.has(u.path));
 }
 
 async function refreshStats() {
@@ -114,6 +118,7 @@ watch(phase, async (p, before) => {
   if (p !== "idle" && p !== before) view.value = "record";
   if (p === "done" || before === "done") await refreshMeeting();
   if (p === "idle") await refreshUnfinished();
+  else unfinished.value = [];
   if (before && before !== p) {
     historyRefresh.value++;
     refreshStats();
@@ -459,7 +464,7 @@ const nav: { key: View; label: string }[] = [
             </button>
           </div>
           <div
-            v-for="u in unfinished"
+            v-for="u in phase === 'idle' ? unfinished : []"
             :key="u.path"
             class="mx-auto mb-4 w-full max-w-md rounded-xl border border-line bg-card px-4 py-3 text-sm"
           >
@@ -470,7 +475,7 @@ const nav: { key: View; label: string }[] = [
             </p>
             <div class="mt-2 flex gap-2">
               <button class="rounded-full bg-accent px-3 py-1 font-semibold text-on-accent" @click="recover(u, true)">Save</button>
-              <button class="rounded-full bg-card-2 px-3 py-1 font-semibold" @click="unfinished = unfinished.filter((x) => x !== u)">
+              <button class="rounded-full bg-card-2 px-3 py-1 font-semibold" @click="later.add(u.path), (unfinished = unfinished.filter((x) => x !== u))">
                 Later
               </button>
               <button class="rounded-full px-3 py-1 font-semibold text-danger" @click="recover(u, false)">Discard</button>

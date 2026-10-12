@@ -285,11 +285,41 @@ pub fn recovery_note(staging: &Path) -> RecordingNote {
 
 /// Writes the audio and the kept tracks of a stopped recording into `out`,
 /// and the manifest. Returns whether the audio and the tracks were saved.
-pub fn save_recording(staging: &Path, out: &Path, note: &RecordingNote) -> (bool, bool, Manifest) {
+/// `progress` hears from 0 to 1 how far it is, a few times a second.
+pub fn save_recording(
+    staging: &Path,
+    out: &Path,
+    note: &RecordingNote,
+    progress: impl Fn(f64),
+) -> (bool, bool, Manifest) {
+    use std::sync::atomic::{AtomicU64, Ordering};
     let _ = std::fs::create_dir_all(out);
     let (mic, system) = (mic_raw(staging), system_raw(staging));
-    let audio = export::export_audio(&mic, &system, out, note.format);
-    let tracks = export::export_tracks(&mic, &system, out);
+    // The audio pads the shorter track with silence; done first, so the
+    // kept tracks are not read while that happens.
+    for path in [&mic, &system] {
+        let _ = std::fs::OpenOptions::new().create(true).append(true).open(path);
+    }
+    let _ = export::pad_to_same_length([mic.as_path(), system.as_path()]);
+    // Both tracks are read six times over (levels, the audio, the kept
+    // tracks); the audio and the tracks are written side by side.
+    let track = [&mic, &system]
+        .iter()
+        .map(|p| std::fs::metadata(p).map_or(0, |m| m.len()))
+        .max()
+        .unwrap_or(0);
+    let total = (track * 6).max(1) as f64;
+    let done = AtomicU64::new(0);
+    let (audio, tracks) = std::thread::scope(|scope| {
+        let audio = scope.spawn(|| export::export_audio_counted(&mic, &system, out, note.format, &done));
+        let tracks = scope.spawn(|| export::export_tracks_counted(&mic, &system, out, &done));
+        while !(audio.is_finished() && tracks.is_finished()) {
+            progress((done.load(Ordering::Relaxed) as f64 / total).min(1.0));
+            std::thread::sleep(std::time::Duration::from_millis(250));
+        }
+        (audio.join().unwrap_or(false), tracks.join().unwrap_or(false))
+    });
+    progress(1.0);
     let manifest = Manifest {
         title: note.title.clone(),
         started_at: note.started_at,

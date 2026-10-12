@@ -3,6 +3,7 @@
 use std::fs::OpenOptions;
 use std::io::{BufReader, Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use crate::codec::{Limiter, OpusWriter, RawReader};
 use crate::{CHANNELS, RATE};
 
@@ -50,7 +51,7 @@ impl Format {
 }
 
 /// Appends silence so both tracks are equally long and stay aligned at the end.
-fn pad_to_same_length(paths: [&Path; 2]) -> std::io::Result<()> {
+pub fn pad_to_same_length(paths: [&Path; 2]) -> std::io::Result<()> {
     let sizes = [
         std::fs::metadata(paths[0])?.len(),
         std::fs::metadata(paths[1])?.len(),
@@ -78,6 +79,10 @@ const MAX_CUT_DB: f64 = -12.0;
 /// One gain for the whole track keeps its dynamics; the limiter after it
 /// catches the peaks.
 pub fn speech_gain_db(raw: &Path) -> f64 {
+    speech_gain_db_counted(raw, &AtomicU64::new(0))
+}
+
+fn speech_gain_db_counted(raw: &Path, done: &AtomicU64) -> f64 {
     let Ok(file) = std::fs::File::open(raw) else {
         return 0.0;
     };
@@ -86,6 +91,7 @@ pub fn speech_gain_db(raw: &Path) -> f64 {
     let mut buf = vec![0u8; frame_bytes];
     let mut levels = Vec::new();
     while reader.read_exact(&mut buf).is_ok() {
+        done.fetch_add(frame_bytes as u64, Ordering::Relaxed);
         let sum: f64 = buf
             .as_chunks::<2>()
             .0
@@ -110,6 +116,18 @@ pub fn speech_gain_db(raw: &Path) -> f64 {
 /// Each track is levelled on its own first, so a quiet side is as easy to hear
 /// as a loud one.
 pub fn export_audio(mic_raw: &Path, system_raw: &Path, out: &Path, format: Format) -> bool {
+    export_audio_counted(mic_raw, system_raw, out, format, &AtomicU64::new(0))
+}
+
+/// `export_audio`, adding the raw bytes it reads to `done`: six times the
+/// length of a track together with `export_tracks_counted`.
+pub fn export_audio_counted(
+    mic_raw: &Path,
+    system_raw: &Path,
+    out: &Path,
+    format: Format,
+    done: &AtomicU64,
+) -> bool {
     for path in [mic_raw, system_raw] {
         if OpenOptions::new()
             .create(true)
@@ -127,8 +145,8 @@ pub fn export_audio(mic_raw: &Path, system_raw: &Path, out: &Path, format: Forma
         return true; // nothing was recorded
     }
 
-    let mic_gain = db_to_gain(speech_gain_db(mic_raw));
-    let system_gain = db_to_gain(speech_gain_db(system_raw));
+    let mic_gain = db_to_gain(speech_gain_db_counted(mic_raw, done));
+    let system_gain = db_to_gain(speech_gain_db_counted(system_raw, done));
     let mono = |f: &[f32]| (f[0] + f[1]) * 0.5;
     let result = match format {
         Format::Separate => encode(
@@ -137,6 +155,7 @@ pub fn export_audio(mic_raw: &Path, system_raw: &Path, out: &Path, format: Forma
             1,
             64_000,
             Some(LIMIT),
+            done,
             |frames, dst| dst.push(mono(frames[0]) * mic_gain),
         )
         .and_then(|()| {
@@ -146,6 +165,7 @@ pub fn export_audio(mic_raw: &Path, system_raw: &Path, out: &Path, format: Forma
                 2,
                 96_000,
                 Some(LIMIT),
+                done,
                 |frames, dst| dst.extend(frames[0].iter().map(|v| v * system_gain)),
             )
         }),
@@ -155,6 +175,7 @@ pub fn export_audio(mic_raw: &Path, system_raw: &Path, out: &Path, format: Forma
             2,
             96_000,
             Some(LIMIT),
+            done,
             |frames, dst| {
                 dst.push(mono(frames[0]) * mic_gain);
                 dst.push(mono(frames[1]) * system_gain);
@@ -166,6 +187,7 @@ pub fn export_audio(mic_raw: &Path, system_raw: &Path, out: &Path, format: Forma
             1,
             64_000,
             Some(LIMIT),
+            done,
             |frames, dst| dst.push(mono(frames[0]) * mic_gain + mono(frames[1]) * system_gain),
         ),
     };
@@ -190,6 +212,7 @@ fn encode(
     channels: usize,
     bitrate: i32,
     limit: Option<f32>,
+    done: &AtomicU64,
     mix: impl Fn(&[&[f32]], &mut Vec<f32>),
 ) -> Result<(), String> {
     const CHUNK: usize = 4800; // 100 ms
@@ -205,7 +228,9 @@ fn encode(
     loop {
         let mut frames = 0;
         for (reader, buf) in readers.iter_mut().zip(bufs.iter_mut()) {
-            frames = frames.max(reader.read(CHUNK, buf).map_err(|e| e.to_string())?);
+            let read = reader.read(CHUNK, buf).map_err(|e| e.to_string())?;
+            done.fetch_add((read * ch * 2) as u64, Ordering::Relaxed);
+            frames = frames.max(read);
         }
         if frames == 0 {
             break;
@@ -249,18 +274,31 @@ pub fn tracks(meeting_dir: &Path) -> (PathBuf, PathBuf) {
 
 /// Writes both raw tracks as mono Opus into `meeting_dir/.tracks`.
 pub fn export_tracks(mic_raw: &Path, system_raw: &Path, meeting_dir: &Path) -> bool {
+    export_tracks_counted(mic_raw, system_raw, meeting_dir, &AtomicU64::new(0))
+}
+
+pub fn export_tracks_counted(
+    mic_raw: &Path,
+    system_raw: &Path,
+    meeting_dir: &Path,
+    done: &AtomicU64,
+) -> bool {
     let (mic, computer) = tracks(meeting_dir);
     if std::fs::create_dir_all(meeting_dir.join(TRACKS_DIR)).is_err() {
         return false;
     }
     [(mic_raw, mic), (system_raw, computer)]
         .iter()
-        .all(|(raw, target)| export_mono(raw, target, 48_000))
+        .all(|(raw, target)| export_mono_counted(raw, target, 48_000, done))
 }
 
 /// A raw track as mono Opus at `bitrate`, as it is: no levelling.
 pub fn export_mono(raw: &Path, target: &Path, bitrate: i32) -> bool {
-    encode(&[raw], target, 1, bitrate, None, |frames, dst| {
+    export_mono_counted(raw, target, bitrate, &AtomicU64::new(0))
+}
+
+fn export_mono_counted(raw: &Path, target: &Path, bitrate: i32, done: &AtomicU64) -> bool {
+    encode(&[raw], target, 1, bitrate, None, done, |frames, dst| {
         dst.push((frames[0][0] + frames[0][1]) * 0.5)
     })
     .is_ok()
